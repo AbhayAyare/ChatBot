@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NeoChat AI</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Outfit', sans-serif;
+      background: linear-gradient(to bottom right, #141e30, #243b55);
+      color: #f4f4f4;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .chat-container {
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+      width: 95%;
+      max-width: 700px;
+      display: flex;
+      flex-direction: column;
+      height: 90vh;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      background: transparent;
+      padding: 20px;
+      font-size: 1.3rem;
+      font-weight: 600;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      position: relative;
+    }
+
+    #themeToggle {
+      position: absolute;
+      right: 20px;
+      top: 20px;
+      background: none;
+      border: none;
+      color: inherit;
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+
+    #chat {
+      flex-grow: 1;
+      padding: 20px;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+
+    .message {
+      margin: 12px 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message.user { align-items: flex-end; }
+    .message.bot { align-items: flex-start; }
+
+    .bubble {
+      padding: 14px 18px;
+      border-radius: 20px;
+      max-width: 80%;
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    .user .bubble {
+      background: #6dd5ed;
+      background: linear-gradient(to right, #2193b0, #6dd5ed);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .bot .bubble {
+      background: #eeeeee;
+      color: #333;
+      border-bottom-left-radius: 4px;
+    }
+
+    .input-area {
+      display: flex;
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.1);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #userInput {
+      flex: 1;
+      padding: 14px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 10px;
+      outline: none;
+    }
+
+    button {
+      margin-left: 12px;
+      padding: 14px 20px;
+      background: #00c6ff;
+      background: linear-gradient(to right, #0072ff, #00c6ff);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    @media screen and (max-width: 480px) {
+      .chat-container { height: 95vh; }
+      .input-area { flex-direction: column; }
+      #userInput, button { width: 100%; margin: 6px 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="chat-container">
+    <div class="chat-header" id="title">🤖 NeoChat AI <button id="themeToggle">🌙</button></div>
+    <div id="chat"></div>
+    <div class="input-area">
+      <input type="text" id="userInput" placeholder="Ask anything or use /name ..." />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    let botName = "NeoChat AI";
+    let isDark = true;
+
+    const appendMessage = (sender, text) => {
+      const chat = document.getElementById("chat");
+      const msgDiv = document.createElement("div");
+      msgDiv.className = `message ${sender}`;
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      msgDiv.appendChild(bubble);
+      chat.appendChild(msgDiv);
+      chat.scrollTop = chat.scrollHeight;
+
+      if (sender === "bot") {
+        let i = 0;
+        const interval = setInterval(() => {
+          if (i < text.length) {
+            bubble.textContent += text.charAt(i++);
+            chat.scrollTop = chat.scrollHeight;
+          } else clearInterval(interval);
+        }, 20);
+      } else {
+        bubble.textContent = text;
+      }
+    };
+
+    const sendMessage = async () => {
+      const input = document.getElementById("userInput");
+      const userInput = input.value.trim();
+      if (!userInput) return;
+
+      if (userInput.startsWith("/name ")) {
+        const newName = userInput.substring(6).trim();
+        if (newName) {
+          botName = newName;
+          document.getElementById("title").firstChild.textContent = `🤖 ${botName} `;
+          appendMessage("user", `Changed bot name to ${botName}`);
+        } else {
+          appendMessage("user", "Invalid name command. Try: /name NewBotName");
+        }
+        input.value = "";
+        return;
+      }
+
+      appendMessage("user", userInput);
+      appendMessage("bot", "⏳ Thinking...");
+
+      try {
+        const response = await fetch("http://localhost:3000/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "llama3",
+            prompt: `<|begin_of_text|><|system|>\nYou are ${botName}, a helpful and intelligent assistant.\n<|end|><|user|>\n${userInput}\n<|end|><|assistant|>`
+          })
+        });
+        const data = await response.json();
+        const chat = document.getElementById("chat");
+        const lastBotMsg = chat.querySelector(".message.bot:last-child");
+        if (lastBotMsg) chat.removeChild(lastBotMsg);
+
+        appendMessage("bot", data.response?.trim() || "🤖 Sorry, I didn't understand that.");
+      } catch (err) {
+        console.error(err);
+        appendMessage("bot", "⚠️ Error: Cannot connect to AI server.");
+      }
+
+      input.value = "";
+    };
+
+    document.getElementById("userInput").addEventListener("keydown", e => {
+      if (e.key === "Enter") sendMessage();
+    });
+
+    document.getElementById("themeToggle").onclick = () => {
+      isDark = !isDark;
+      document.body.style.background = isDark ? "linear-gradient(to bottom right, #141e30, #243b55)" : "#f0f0f0";
+      document.body.style.color = isDark ? "#f4f4f4" : "#222";
+      document.querySelector(".chat-container").style.background = isDark ? "rgba(0, 0, 0, 0.25)" : "#fff";
+      document.getElementById("themeToggle").textContent = isDark ? "🌙" : "🌞";
+      document.querySelectorAll(".bot .bubble").forEach(b => {
+        b.style.backgroundColor = isDark ? "#eeeeee" : "#333";
+        b.style.color = isDark ? "#333" : "#eee";
+      });
+      document.querySelectorAll(".user .bubble").forEach(b => {
+        b.style.background = isDark ? "linear-gradient(to right, #2193b0, #6dd5ed)" : "#4caf50";
+        b.style.color = "#fff";
+      });
+    };
+  </script>
+</body>
+</html>
